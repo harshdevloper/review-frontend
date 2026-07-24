@@ -1,3 +1,5 @@
+import { API_BASE } from '@/lib/config';
+
 export interface ApiErrorPayload {
   code: string;
   message: string;
@@ -26,13 +28,13 @@ async function parseErrorResponse(res: Response): Promise<ApiError> {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`/api${path}`);
+  const res = await fetch(`${API_BASE}/api${path}`);
   if (!res.ok) throw await parseErrorResponse(res);
   return res.json() as Promise<T>;
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -42,7 +44,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function apiPostBlob(path: string, body: unknown): Promise<{ blob: Blob; fileName: string }> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

@@ -1,4 +1,5 @@
 import { apiGet } from './client';
+import { API_BASE } from '@/lib/config';
 import type { ReviewFetchResult } from '@/types/review';
 
 export function getCachedReviews(packageName: string): Promise<ReviewFetchResult> {
@@ -39,7 +40,7 @@ export function streamReviews(
     onError: (event: FetchErrorEvent) => void;
   },
 ): () => void {
-  const source = new EventSource(`/api/reviews/stream?url=${encodeURIComponent(url)}`);
+  const source = new EventSource(`${API_BASE}/api/reviews/stream?url=${encodeURIComponent(url)}`);
 
   source.addEventListener('stage', (evt) => {
     handlers.onStage(JSON.parse((evt as MessageEvent).data) as FetchStageEvent);

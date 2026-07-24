@@ -14,6 +14,16 @@ npm run preview  # preview the production build
 The backend must be running on port 4000 (see `../Backend`). Vite's dev proxy
 forwards `/api/*` to it, so there is no CORS configuration in development.
 
+## Deployment
+
+This frontend is configured for Vercel with an `/api` rewrite to the deployed
+backend at `https://review-backend-jhau.onrender.com`. That keeps the browser
+talking to the frontend origin while Vercel proxies requests to Render.
+
+On the Render backend, set `CLIENT_ORIGIN` to the deployed frontend origin
+(`https://review-frontend-three.vercel.app`) so direct browser access to the
+backend remains allowed if you need it.
+
 ## Routes
 
 - `/` — landing page with the URL input and live fetch-progress flow.

@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api",
+      "destination": "https://review-backend-jhau.onrender.com/api"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://review-backend-jhau.onrender.com/api/:path*"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}
