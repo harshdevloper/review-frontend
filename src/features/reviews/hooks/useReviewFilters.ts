@@ -3,11 +3,14 @@ import { useDebounce } from '@/hooks/useDebounce';
 import type { Review } from '@/types/review';
 
 export type SortOption = 'newest' | 'oldest' | 'highest' | 'lowest' | 'helpful';
+export type DateMode = 'single' | 'range';
 
 export interface ReviewFilterState {
   search: string;
+  endsWith: string;
   minRating: number;
   maxRating: number;
+  dateMode: DateMode;
   dateFrom: string | null;
   dateTo: string | null;
   language: string;
@@ -19,8 +22,10 @@ export interface ReviewFilterState {
 
 export const DEFAULT_FILTERS: ReviewFilterState = {
   search: '',
+  endsWith: '',
   minRating: 1,
   maxRating: 5,
+  dateMode: 'single',
   dateFrom: null,
   dateTo: null,
   language: 'all',
@@ -29,6 +34,41 @@ export const DEFAULT_FILTERS: ReviewFilterState = {
   bookmarkedOnly: false,
   sortBy: 'newest',
 };
+
+const DATE_INPUT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Review timestamps arrive as UTC ISO strings but are rendered in the viewer's timezone, so the day
+ * boundaries have to be built locally too — `new Date('2026-07-17')` is UTC midnight, which shifts
+ * the window by the UTC offset and pulls in neighbouring days while dropping matching ones.
+ */
+function localDayBounds(value: string): { start: number; end: number } | null {
+  const match = DATE_INPUT_PATTERN.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match.map(Number);
+  const start = new Date(year, month - 1, day, 0, 0, 0, 0);
+  if (Number.isNaN(start.getTime())) return null;
+  return { start: start.getTime(), end: new Date(year, month - 1, day, 23, 59, 59, 999).getTime() };
+}
+
+/** In `single` mode both bounds come from `dateFrom`, so one picked day matches exactly that day. */
+function resolveDateRange(filters: ReviewFilterState): { fromTime: number | null; toTime: number | null } {
+  const from = filters.dateFrom ? localDayBounds(filters.dateFrom) : null;
+  const toValue = filters.dateMode === 'single' ? filters.dateFrom : filters.dateTo;
+  const to = toValue ? localDayBounds(toValue) : null;
+  return { fromTime: from?.start ?? null, toTime: to?.end ?? null };
+}
+
+/**
+ * Variation selectors, joiners and skin-tone modifiers make visually related emoji compare unequal
+ * (heart U+2764 vs U+2764 U+FE0F, thumbs-up with and without a tone). They are stripped from both
+ * the review text and the term the user typed, so a bare emoji matches its decorated variants.
+ */
+const EMOJI_MODIFIERS = /[\p{Variation_Selector}\p{Emoji_Modifier}\u{200B}-\u{200D}\u{2060}]/gu;
+
+function normalizeSuffix(value: string): string {
+  return value.replace(EMOJI_MODIFIERS, '').trim().toLowerCase();
+}
 
 function sortReviews(reviews: Review[], sortBy: SortOption): Review[] {
   const sorted = [...reviews];
@@ -51,6 +91,7 @@ function sortReviews(reviews: Review[], sortBy: SortOption): Review[] {
 export function useReviewFilters(reviews: Review[], bookmarks: Set<string>) {
   const [filters, setFilters] = useState<ReviewFilterState>(DEFAULT_FILTERS);
   const debouncedSearch = useDebounce(filters.search, 200);
+  const debouncedEndsWith = useDebounce(filters.endsWith, 200);
 
   const languages = useMemo(() => [...new Set(reviews.map((r) => r.language))].sort(), [reviews]);
   const versions = useMemo(
@@ -60,8 +101,9 @@ export function useReviewFilters(reviews: Review[], bookmarks: Set<string>) {
 
   const filtered = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
-    const fromTime = filters.dateFrom ? new Date(filters.dateFrom).getTime() : null;
-    const toTime = filters.dateTo ? new Date(filters.dateTo).getTime() + 86_400_000 - 1 : null;
+    const suffix = normalizeSuffix(debouncedEndsWith);
+    const { fromTime, toTime } = resolveDateRange(filters);
+    const hasDateFilter = fromTime !== null || toTime !== null;
 
     const result = reviews.filter((r) => {
       if (r.score < filters.minRating || r.score > filters.maxRating) return false;
@@ -71,9 +113,14 @@ export function useReviewFilters(reviews: Review[], bookmarks: Set<string>) {
       if (filters.developerReply === 'without' && r.replyText) return false;
       if (filters.bookmarkedOnly && !bookmarks.has(r.id)) return false;
 
-      const time = new Date(r.date).getTime();
-      if (fromTime !== null && time < fromTime) return false;
-      if (toTime !== null && time > toTime) return false;
+      if (hasDateFilter) {
+        const time = new Date(r.date).getTime();
+        if (Number.isNaN(time)) return false;
+        if (fromTime !== null && time < fromTime) return false;
+        if (toTime !== null && time > toTime) return false;
+      }
+
+      if (suffix && !normalizeSuffix(r.text).endsWith(suffix)) return false;
 
       if (query) {
         const haystack = `${r.text} ${r.userName} ${r.version ?? ''} ${r.replyText ?? ''}`.toLowerCase();
@@ -84,12 +131,14 @@ export function useReviewFilters(reviews: Review[], bookmarks: Set<string>) {
     });
 
     return sortReviews(result, filters.sortBy);
-  }, [reviews, bookmarks, filters, debouncedSearch]);
+  }, [reviews, bookmarks, filters, debouncedSearch, debouncedEndsWith]);
 
   const activeFilterCount = useMemo(() => {
+    const { fromTime, toTime } = resolveDateRange(filters);
     let count = 0;
     if (filters.minRating !== DEFAULT_FILTERS.minRating || filters.maxRating !== DEFAULT_FILTERS.maxRating) count++;
-    if (filters.dateFrom || filters.dateTo) count++;
+    if (fromTime !== null || toTime !== null) count++;
+    if (filters.endsWith.trim()) count++;
     if (filters.language !== 'all') count++;
     if (filters.version !== 'all') count++;
     if (filters.developerReply !== 'any') count++;

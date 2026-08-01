@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import type { ReviewFilterState, SortOption } from '../hooks/useReviewFilters';
+import type { DateMode, ReviewFilterState, SortOption } from '../hooks/useReviewFilters';
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -16,6 +16,13 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'lowest', label: 'Lowest rating' },
   { value: 'helpful', label: 'Most helpful' },
 ];
+
+const DATE_MODES: { value: DateMode; label: string }[] = [
+  { value: 'single', label: 'Single day' },
+  { value: 'range', label: 'Range' },
+];
+
+const QUICK_EMOJI = ['🔥', '❤️', '😍', '👍', '👎', '😡', '😭', '🙏', '💯', '⭐'];
 
 export function FilterToolbar({
   filters,
@@ -99,24 +106,100 @@ export function FilterToolbar({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="mb-1.5 block text-xs text-muted-foreground">From</Label>
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Date</Label>
+                  <div className="flex items-center gap-0.5 rounded-lg bg-white/5 p-0.5">
+                    {DATE_MODES.map((mode) => (
+                      <button
+                        key={mode.value}
+                        type="button"
+                        aria-pressed={filters.dateMode === mode.value}
+                        onClick={() => setFilters((prev) => ({ ...prev, dateMode: mode.value }))}
+                        className={cn(
+                          'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+                          filters.dateMode === mode.value
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {filters.dateMode === 'single' ? (
                   <Input
                     type="date"
+                    aria-label="Show reviews posted on this day"
                     value={filters.dateFrom ?? ''}
                     onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value || null }))}
                     className="h-9"
                   />
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="mb-1.5 block text-xs text-muted-foreground">From</Label>
+                      <Input
+                        type="date"
+                        value={filters.dateFrom ?? ''}
+                        onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value || null }))}
+                        className="h-9"
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1.5 block text-xs text-muted-foreground">To</Label>
+                      <Input
+                        type="date"
+                        value={filters.dateTo ?? ''}
+                        onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value || null }))}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Ends with</Label>
+                  {filters.endsWith ? (
+                    <button
+                      type="button"
+                      onClick={() => setFilters((prev) => ({ ...prev, endsWith: '' }))}
+                      className="text-[11px] font-medium text-primary hover:underline"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
                 </div>
-                <div>
-                  <Label className="mb-1.5 block text-xs text-muted-foreground">To</Label>
-                  <Input
-                    type="date"
-                    value={filters.dateTo ?? ''}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value || null }))}
-                    className="h-9"
-                  />
+                <Input
+                  value={filters.endsWith}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, endsWith: e.target.value }))}
+                  placeholder="Paste an emoji, e.g. 🔥"
+                  className="h-9"
+                />
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {QUICK_EMOJI.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      aria-label={`Reviews ending with ${emoji}`}
+                      aria-pressed={filters.endsWith === emoji}
+                      onClick={() =>
+                        setFilters((prev) => ({ ...prev, endsWith: prev.endsWith === emoji ? '' : emoji }))
+                      }
+                      className={cn(
+                        'rounded-lg border px-1.5 py-1 text-sm leading-none transition-colors',
+                        filters.endsWith === emoji
+                          ? 'border-primary bg-primary/15'
+                          : 'border-transparent bg-white/5 hover:bg-white/10',
+                      )}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
                 </div>
               </div>
 
