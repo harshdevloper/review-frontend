@@ -10,6 +10,7 @@ import { AnalyticsSection } from '@/features/analytics/components/AnalyticsSecti
 import { ReviewsSection } from '@/features/reviews/components/ReviewsSection';
 import { DashboardSkeleton } from '@/features/dashboard/components/DashboardSkeleton';
 import { ProgressOverlay } from '@/features/fetch-progress/components/ProgressOverlay';
+import { LiveFetchBanner, AnalyticsPending } from '@/features/fetch-progress/components/LiveFetchBanner';
 import { ErrorState } from '@/features/states/components/ErrorState';
 import { EmptyState } from '@/features/states/components/EmptyState';
 import { useReviewFetchStream } from '@/features/fetch-progress/hooks/useReviewFetchStream';
@@ -26,7 +27,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const refetchStartedFor = useRef<string | null>(null);
 
-  const { status, stage, error, start, reset } = useReviewFetchStream();
+  const { status, stage, error, partial, start, reset } = useReviewFetchStream();
 
   const query = useQuery({
     queryKey: reviewsQueryKey(packageName),
@@ -69,8 +70,10 @@ export default function DashboardPage() {
     );
   }
 
-  // Actively re-fetching a deep-linked app that wasn't cached
-  if (status === 'streaming' || (notCached && status !== 'error')) {
+  // Actively fetching. The overlay only holds the screen until the first reviews arrive — after
+  // that the dashboard renders live off the partial stream and fills in as more land.
+  const isFetching = status === 'streaming' || (notCached && status !== 'error');
+  if (isFetching && !partial?.reviews.length) {
     return (
       <>
         <Navbar />
@@ -114,7 +117,8 @@ export default function DashboardPage() {
     );
   }
 
-  const data = query.data;
+  // while streaming, the partial result is ahead of anything the cache endpoint can return
+  const data = (isFetching && partial ? partial : query.data) ?? partial;
   if (!data) {
     return (
       <>
@@ -138,8 +142,9 @@ export default function DashboardPage() {
         transition={{ duration: 0.4 }}
         className="relative z-10 mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8"
       >
+        {isFetching ? <LiveFetchBanner reviewCount={data.reviews.length} stage={stage} /> : null}
         <OverviewCards app={data.app} reviewsCount={data.reviews.length} />
-        <AnalyticsSection analytics={data.analytics} />
+        {data.analytics ? <AnalyticsSection analytics={data.analytics} /> : <AnalyticsPending />}
         <ReviewsSection app={data.app} reviews={data.reviews} />
       </motion.main>
     </>

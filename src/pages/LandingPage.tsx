@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Navbar } from '@/components/layout/Navbar';
@@ -12,12 +12,28 @@ import { useReviewFetchStream } from '@/features/fetch-progress/hooks/useReviewF
 export default function LandingPage() {
   const navigate = useNavigate();
   const [lastUrl, setLastUrl] = useState('');
-  const { status, stage, error, start, reset } = useReviewFetchStream({
-    onComplete: (result) => navigate(`/app/${result.packageName}`),
+  const handedOff = useRef(false);
+  const { status, stage, error, partial, start, reset } = useReviewFetchStream({
+    onComplete: (result) => {
+      if (handedOff.current) return;
+      handedOff.current = true;
+      navigate(`/app/${result.packageName}`);
+    },
   });
+
+  // Hand over to the dashboard the moment there is something worth showing, rather than sitting on
+  // the overlay for the whole fetch. The scrape keeps running server-side after this unmounts, and
+  // the dashboard re-attaches to that same job and replays what it has already collected.
+  useEffect(() => {
+    if (handedOff.current || status !== 'streaming') return;
+    if (!partial?.app || partial.reviews.length === 0) return;
+    handedOff.current = true;
+    navigate(`/app/${partial.app.packageName}`);
+  }, [status, partial, navigate]);
 
   const handleSubmit = useCallback(
     (url: string) => {
+      handedOff.current = false;
       setLastUrl(url);
       start(url);
     },

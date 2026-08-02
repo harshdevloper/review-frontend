@@ -51,11 +51,12 @@ export function ReviewList({
               className="absolute left-0 top-0 w-full"
               style={{ transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)` }}
             >
+              {/* passed straight through, not wrapped in a closure, so ReviewCard's memo holds */}
               <ReviewCard
                 review={review}
                 query={query}
                 isBookmarked={bookmarks.has(review.id)}
-                onToggleBookmark={() => onToggleBookmark(review.id)}
+                onToggleBookmark={onToggleBookmark}
               />
             </div>
           );

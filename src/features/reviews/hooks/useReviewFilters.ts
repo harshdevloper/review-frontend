@@ -4,10 +4,13 @@ import type { Review } from '@/types/review';
 
 export type SortOption = 'newest' | 'oldest' | 'highest' | 'lowest' | 'helpful';
 export type DateMode = 'single' | 'range';
+/** `text` matches the literal ending typed in; the rest match a whole category of ending. */
+export type EndsWithMode = 'text' | 'emoji' | 'number' | 'symbol' | 'letter';
 
 export interface ReviewFilterState {
   search: string;
   endsWith: string;
+  endsWithMode: EndsWithMode;
   minRating: number;
   maxRating: number;
   dateMode: DateMode;
@@ -23,6 +26,7 @@ export interface ReviewFilterState {
 export const DEFAULT_FILTERS: ReviewFilterState = {
   search: '',
   endsWith: '',
+  endsWithMode: 'text',
   minRating: 1,
   maxRating: 5,
   dateMode: 'single',
@@ -70,6 +74,27 @@ function normalizeSuffix(value: string): string {
   return value.replace(EMOJI_MODIFIERS, '').trim().toLowerCase();
 }
 
+/**
+ * Category endings, for "show me everything that trails off in a number" rather than one exact
+ * ending. Free text already covers literals — "$500", "!!!", "ever" and a bare emoji all work as
+ * plain suffixes — so these only cover what a literal cannot express.
+ */
+const ENDS_WITH_PATTERNS: Record<Exclude<EndsWithMode, 'text'>, RegExp> = {
+  emoji: /\p{Extended_Pictographic}$/u,
+  number: /\p{Nd}$/u,
+  symbol: /[\p{P}\p{S}]$/u,
+  letter: /\p{L}$/u,
+};
+
+function matchesEnding(text: string, mode: EndsWithMode, suffix: string): boolean {
+  const normalized = normalizeSuffix(text);
+  if (!normalized) return false;
+  if (mode === 'text') return suffix ? normalized.endsWith(suffix) : true;
+  // a category and a literal combine: "ends with a number" AND "ends with 5"
+  if (suffix && !normalized.endsWith(suffix)) return false;
+  return ENDS_WITH_PATTERNS[mode].test(normalized);
+}
+
 function sortReviews(reviews: Review[], sortBy: SortOption): Review[] {
   const sorted = [...reviews];
   switch (sortBy) {
@@ -102,6 +127,7 @@ export function useReviewFilters(reviews: Review[], bookmarks: Set<string>) {
   const filtered = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
     const suffix = normalizeSuffix(debouncedEndsWith);
+    const endingActive = Boolean(suffix) || filters.endsWithMode !== 'text';
     const { fromTime, toTime } = resolveDateRange(filters);
     const hasDateFilter = fromTime !== null || toTime !== null;
 
@@ -120,7 +146,7 @@ export function useReviewFilters(reviews: Review[], bookmarks: Set<string>) {
         if (toTime !== null && time > toTime) return false;
       }
 
-      if (suffix && !normalizeSuffix(r.text).endsWith(suffix)) return false;
+      if (endingActive && !matchesEnding(r.text, filters.endsWithMode, suffix)) return false;
 
       if (query) {
         const haystack = `${r.text} ${r.userName} ${r.version ?? ''} ${r.replyText ?? ''}`.toLowerCase();
@@ -138,7 +164,7 @@ export function useReviewFilters(reviews: Review[], bookmarks: Set<string>) {
     let count = 0;
     if (filters.minRating !== DEFAULT_FILTERS.minRating || filters.maxRating !== DEFAULT_FILTERS.maxRating) count++;
     if (fromTime !== null || toTime !== null) count++;
-    if (filters.endsWith.trim()) count++;
+    if (filters.endsWith.trim() || filters.endsWithMode !== 'text') count++;
     if (filters.language !== 'all') count++;
     if (filters.version !== 'all') count++;
     if (filters.developerReply !== 'any') count++;

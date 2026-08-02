@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Bookmark, ChevronDown, Copy, CornerDownRight, Share2, ThumbsUp } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ReviewAvatar } from './ReviewAvatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StarRating } from '@/components/layout/StarRating';
@@ -13,7 +13,13 @@ import type { Review } from '@/types/review';
 
 const TEXT_CLAMP_LENGTH = 260;
 
-export function ReviewCard({
+/**
+ * Memoised because reviews stream in continuously: the list commits new batches roughly once a
+ * second, and without this every visible card (and its highlight regex work) re-rendered on each
+ * commit. All four props are stable — `onToggleBookmark` takes the id so the parent can hand down
+ * one callback instead of minting a closure per row.
+ */
+export const ReviewCard = memo(function ReviewCard({
   review,
   query,
   isBookmarked,
@@ -22,9 +28,10 @@ export function ReviewCard({
   review: Review;
   query: string;
   isBookmarked: boolean;
-  onToggleBookmark: () => void;
+  onToggleBookmark: (reviewId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const handleToggleBookmark = useCallback(() => onToggleBookmark(review.id), [onToggleBookmark, review.id]);
   const isLong = review.text.length > TEXT_CLAMP_LENGTH;
   const displayText = expanded || !isLong ? review.text : `${review.text.slice(0, TEXT_CLAMP_LENGTH)}…`;
 
@@ -60,10 +67,7 @@ export function ReviewCard({
       className="glass rounded-2xl p-5 transition-shadow hover:shadow-xl hover:shadow-blue-500/5"
     >
       <div className="flex items-start gap-3">
-        <Avatar>
-          <AvatarImage src={review.userImage} alt="" />
-          <AvatarFallback>{review.userName.slice(0, 1).toUpperCase()}</AvatarFallback>
-        </Avatar>
+        <ReviewAvatar src={review.userImage} userName={review.userName} />
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -89,7 +93,7 @@ export function ReviewCard({
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={onToggleBookmark}
+            onClick={handleToggleBookmark}
             aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark review'}
             aria-pressed={isBookmarked}
           >
@@ -142,4 +146,4 @@ export function ReviewCard({
       </div>
     </motion.div>
   );
-}
+});

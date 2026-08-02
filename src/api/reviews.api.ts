@@ -1,6 +1,7 @@
 import { apiGet } from './client';
 import { API_BASE } from '@/lib/config';
-import type { ReviewFetchResult } from '@/types/review';
+import type { AppDetails } from '@/types/app';
+import type { Analytics, Review, ReviewFetchResult } from '@/types/review';
 
 export function getCachedReviews(packageName: string): Promise<ReviewFetchResult> {
   return apiGet<ReviewFetchResult>(`/reviews/${encodeURIComponent(packageName)}`);
@@ -36,6 +37,11 @@ export function streamReviews(
   url: string,
   handlers: {
     onStage: (event: FetchStageEvent) => void;
+    // the server streams the app, then reviews in chunks, then analytics snapshots — so the
+    // dashboard can render off partial data instead of waiting for the whole fetch
+    onApp: (app: AppDetails) => void;
+    onReviews: (batch: Review[]) => void;
+    onAnalytics: (analytics: Analytics) => void;
     onComplete: (event: FetchCompleteEvent) => void;
     onError: (event: FetchErrorEvent) => void;
   },
@@ -44,6 +50,18 @@ export function streamReviews(
 
   source.addEventListener('stage', (evt) => {
     handlers.onStage(JSON.parse((evt as MessageEvent).data) as FetchStageEvent);
+  });
+
+  source.addEventListener('app', (evt) => {
+    handlers.onApp(JSON.parse((evt as MessageEvent).data) as AppDetails);
+  });
+
+  source.addEventListener('reviews', (evt) => {
+    handlers.onReviews(JSON.parse((evt as MessageEvent).data) as Review[]);
+  });
+
+  source.addEventListener('analytics', (evt) => {
+    handlers.onAnalytics(JSON.parse((evt as MessageEvent).data) as Analytics);
   });
 
   source.addEventListener('complete', (evt) => {

@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import type { DateMode, ReviewFilterState, SortOption } from '../hooks/useReviewFilters';
+import type { DateMode, EndsWithMode, ReviewFilterState, SortOption } from '../hooks/useReviewFilters';
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -23,6 +23,14 @@ const DATE_MODES: { value: DateMode; label: string }[] = [
 ];
 
 const QUICK_EMOJI = ['🔥', '❤️', '😍', '👍', '👎', '😡', '😭', '🙏', '💯', '⭐'];
+
+const ENDS_WITH_MODES: { value: EndsWithMode; label: string }[] = [
+  { value: 'text', label: 'Exact' },
+  { value: 'emoji', label: 'Any emoji' },
+  { value: 'number', label: 'Any number' },
+  { value: 'symbol', label: 'Any symbol' },
+  { value: 'letter', label: 'Any letter' },
+];
 
 export function FilterToolbar({
   filters,
@@ -164,20 +172,44 @@ export function FilterToolbar({
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground">Ends with</Label>
-                  {filters.endsWith ? (
+                  {filters.endsWith || filters.endsWithMode !== 'text' ? (
                     <button
                       type="button"
-                      onClick={() => setFilters((prev) => ({ ...prev, endsWith: '' }))}
+                      onClick={() => setFilters((prev) => ({ ...prev, endsWith: '', endsWithMode: 'text' }))}
                       className="text-[11px] font-medium text-primary hover:underline"
                     >
                       Clear
                     </button>
                   ) : null}
                 </div>
+
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {ENDS_WITH_MODES.map((mode) => (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      aria-pressed={filters.endsWithMode === mode.value}
+                      onClick={() => setFilters((prev) => ({ ...prev, endsWithMode: mode.value }))}
+                      className={cn(
+                        'rounded-lg px-2 py-1 text-[11px] font-medium transition-colors',
+                        filters.endsWithMode === mode.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-white/5 text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+
                 <Input
                   value={filters.endsWith}
                   onChange={(e) => setFilters((prev) => ({ ...prev, endsWith: e.target.value }))}
-                  placeholder="Paste an emoji, e.g. 🔥"
+                  placeholder={
+                    filters.endsWithMode === 'text'
+                      ? 'Any ending — 🔥, $500, !!!, "ever", 5'
+                      : 'Narrow further (optional)'
+                  }
                   className="h-9"
                 />
                 <div className="mt-2 flex flex-wrap gap-1">
