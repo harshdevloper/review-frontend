@@ -14,6 +14,7 @@ export interface PartialResult {
   app: AppDetails;
   reviews: Review[];
   analytics: Analytics | null;
+  reviewCollection?: ReviewFetchResult['reviewCollection'];
 }
 
 // Reviews arrive far faster than anyone can read them, so state is committed on a timer instead of
@@ -69,7 +70,9 @@ export function useReviewFetchStream(options: UseReviewFetchStreamOptions = {}) 
           commit();
         },
         onReviews: (batch) => {
-          reviewsRef.current = reviewsRef.current.concat(batch);
+          // Chunks are already detached arrays; append in place so replaying a 100k-review cache
+          // does not repeatedly copy the entire accumulated list (quadratic work).
+          reviewsRef.current.push(...batch);
         },
         onAnalytics: (analytics) => {
           analyticsRef.current = analytics;

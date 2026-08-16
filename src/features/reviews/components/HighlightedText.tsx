@@ -12,18 +12,18 @@ function escapeRegExp(value: string): string {
  */
 export const HighlightedText = memo(function HighlightedText({ text, query }: { text: string; query: string }) {
   const parts = useMemo(() => {
-    const term = query.trim();
-    if (!term) return null;
-    return text.split(new RegExp(`(${escapeRegExp(term)})`, 'ig'));
+    const terms = [...new Set(query.trim().split(/\s+/).filter(Boolean))].sort((a, b) => b.length - a.length);
+    if (terms.length === 0) return null;
+    return text.split(new RegExp(`(${terms.map(escapeRegExp).join('|')})`, 'igu'));
   }, [text, query]);
 
   if (!parts) return <>{text}</>;
 
-  const lowered = query.trim().toLowerCase();
+  const terms = new Set(query.trim().split(/\s+/).filter(Boolean).map((term) => term.toLocaleLowerCase()));
   return (
     <>
       {parts.map((part, i) =>
-        part.toLowerCase() === lowered ? <mark key={i}>{part}</mark> : <span key={i}>{part}</span>,
+        terms.has(part.toLocaleLowerCase()) ? <mark key={i}>{part}</mark> : <span key={i}>{part}</span>,
       )}
     </>
   );

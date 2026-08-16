@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
@@ -25,7 +25,6 @@ function playStoreUrlFor(packageName: string): string {
 export default function DashboardPage() {
   const { packageName = '' } = useParams();
   const navigate = useNavigate();
-  const refetchStartedFor = useRef<string | null>(null);
 
   const { status, stage, error, partial, start, reset } = useReviewFetchStream();
 
@@ -36,16 +35,14 @@ export default function DashboardPage() {
     retry: false,
   });
 
-  // Deep-link / refresh path: if the cache endpoint 404s (NOT_CACHED), re-run the
-  // live SSE fetch once for this package so the dashboard self-heals.
+  // A cached payload is the fast first paint, not a reason to skip synchronization. Always attach
+  // to the package job once: after the landing-page handoff this reconnects to the running job;
+  // on a deep link it starts a latest-review check and any required history backfill.
   const notCached = query.isError && query.error instanceof ApiError && query.error.code === 'NOT_CACHED';
 
   useEffect(() => {
-    if (notCached && packageName && refetchStartedFor.current !== packageName) {
-      refetchStartedFor.current = packageName;
-      start(playStoreUrlFor(packageName));
-    }
-  }, [notCached, packageName, start]);
+    if (packageName) start(playStoreUrlFor(packageName));
+  }, [packageName, start]);
 
   // When the stream completes it seeds the query cache; re-read it here.
   useEffect(() => {
@@ -56,7 +53,6 @@ export default function DashboardPage() {
   }, [status]);
 
   const handleRetry = useCallback(() => {
-    refetchStartedFor.current = packageName;
     reset();
     start(playStoreUrlFor(packageName));
   }, [packageName, reset, start]);
@@ -73,7 +69,7 @@ export default function DashboardPage() {
   // Actively fetching. The overlay only holds the screen until the first reviews arrive — after
   // that the dashboard renders live off the partial stream and fills in as more land.
   const isFetching = status === 'streaming' || (notCached && status !== 'error');
-  if (isFetching && !partial?.reviews.length) {
+  if (isFetching && !partial?.reviews.length && !query.data?.reviews.length) {
     return (
       <>
         <Navbar />
@@ -100,7 +96,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (query.isError && !notCached) {
+  if (query.isError && !notCached && !partial) {
     const apiError = query.error instanceof ApiError ? query.error : null;
     return (
       <>
@@ -145,7 +141,7 @@ export default function DashboardPage() {
         {isFetching ? <LiveFetchBanner reviewCount={data.reviews.length} stage={stage} /> : null}
         <OverviewCards app={data.app} reviewsCount={data.reviews.length} />
         {data.analytics ? <AnalyticsSection analytics={data.analytics} /> : <AnalyticsPending />}
-        <ReviewsSection app={data.app} reviews={data.reviews} />
+        <ReviewsSection app={data.app} reviews={data.reviews} collection={data.reviewCollection} />
       </motion.main>
     </>
   );
